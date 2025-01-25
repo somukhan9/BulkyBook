@@ -58,57 +58,41 @@ namespace BulkyBook.Web.Areas.Admin.Controllers
             if (ModelState.IsValid)
             {
                 Product product = productViewModel.Product!;
+                string productPath = @"images\product";
+                string webRootPath = _webHostEnvironment.WebRootPath;
+
+                if (file != null)
+                {
+                    string extension = Path.GetExtension(file.FileName);
+                    string newFileName = Guid.NewGuid().ToString() + "." + extension;
+                    string newFilePath = Path.Combine(webRootPath, productPath);
+
+                    if (!string.IsNullOrEmpty(product.ImageUrl))
+                    {
+                        if (System.IO.File.Exists(Path.Combine(webRootPath, product.ImageUrl.TrimStart('\\'))))
+                        {
+                            System.IO.File.Delete(Path.Combine(webRootPath, product.ImageUrl.TrimStart('\\')));
+                        }
+                    }
+
+                    using (var fileStream = new FileStream(Path.Combine(newFilePath, newFileName), FileMode.Create))
+                    {
+                        file.CopyTo(fileStream);
+                    }
+                    product.ImageUrl = @"\" + productPath + @"\" + newFileName;
+                }
                 if (product.Id == 0)
                 {
-                    if (file != null)
-                    {
-                        string webRootPath = _webHostEnvironment.WebRootPath;
-                        string extension = Path.GetExtension(file.FileName);
-
-                        string newFileName = Guid.NewGuid().ToString() + extension;
-                        string productPath = @"images\product";
-                        string newFilePath = Path.Combine(webRootPath, productPath);
-
-                        using (var fileStream = new FileStream(Path.Combine(newFilePath, newFileName), FileMode.Create))
-                        {
-                            file.CopyTo(fileStream);
-                        }
-                        product.ImageUrl = Path.Combine(newFilePath, newFileName).Replace("\\", "/");
-                    }
                     _unitOfWork.Product.Add(product);
-                    _unitOfWork.Save();
                     TempData["success"] = "Product created successfully.";
-                    return RedirectToAction("Index");
                 }
                 else
                 {
-                    if (file != null)
-                    {
-                        string webRootPath = _webHostEnvironment.WebRootPath;
-                        string extension = Path.GetExtension(file.FileName);
-
-                        string newFileName = Guid.NewGuid().ToString() + "." + extension;
-                        string productPath = @"\images\product";
-                        string newFilePath = Path.Combine(webRootPath, productPath);
-
-                        if (string.IsNullOrEmpty(product.ImageUrl))
-                        {
-                            string existingFile = Path.Combine(product.ImageUrl);
-                            System.IO.File.Delete(existingFile);
-                        }
-
-                        using (var fileStream = new FileStream(Path.Combine(newFilePath, newFileName), FileMode.Create))
-                        {
-                            file.CopyTo(fileStream);
-                        }
-                        product.ImageUrl = Path.Combine(newFilePath, newFileName);
-                    }
-                    _unitOfWork.Product.Add(product);
-                    _unitOfWork.Save();
+                    _unitOfWork.Product.Update(product);
                     TempData["success"] = "Product updated successfully.";
-                    return RedirectToAction("Index");
                 }
-
+                _unitOfWork.Save();
+                return RedirectToAction("Index");
             }
             else
             {
@@ -138,12 +122,20 @@ namespace BulkyBook.Web.Areas.Admin.Controllers
         [HttpPost, ActionName(name: "Delete")]
         public IActionResult DeletePost(int? id)
         {
-            Product? obj = _unitOfWork.Product.Get(u => u.Id == id);
-            if (obj == null)
+            Product? product = _unitOfWork.Product.Get(u => u.Id == id);
+            if (product == null)
             {
                 return NotFound();
             }
-            _unitOfWork.Product.Remove(obj);
+            string webRootPath = _webHostEnvironment.WebRootPath;
+            if (string.IsNullOrEmpty(product.ImageUrl))
+            {
+                if (System.IO.File.Exists(Path.Combine(webRootPath, product.ImageUrl)))
+                {
+                    System.IO.File.Delete(Path.Combine(webRootPath, product.ImageUrl));
+                }
+            }
+            _unitOfWork.Product.Remove(product);
             _unitOfWork.Save();
             TempData["success"] = "Product deleted successfully.";
             return RedirectToAction("Index");
